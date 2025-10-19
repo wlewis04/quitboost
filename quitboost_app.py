@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, datetime
+from datetime import date
+from PIL import Image
+import random
 
 # ------------------------------
 # Streamlit config
@@ -16,13 +18,13 @@ try:
     habits = pd.read_csv("habits.csv")
 except:
     habits = pd.DataFrame(columns=[
-        "Habit", "Start Date", "Streak", "Points", "Level", "Status", "Last Marked"
+        "Habit", "Start Date", "Streak", "Points", "Level", "Status", "Last Marked", "Premium"
     ])
 
 # ------------------------------
 # Helper functions
 # ------------------------------
-def add_habit(name):
+def add_habit(name, premium=False):
     new_habit = pd.DataFrame({
         "Habit": [name],
         "Start Date": [date.today().strftime("%Y-%m-%d")],
@@ -30,12 +32,13 @@ def add_habit(name):
         "Points": [0],
         "Level": [1],
         "Status": ["Active"],
-        "Last Marked": [""]
+        "Last Marked": [""],
+        "Premium": [premium]
     })
     return pd.concat([habits, new_habit], ignore_index=True)
 
-def update_points_and_level(idx):
-    habits.at[idx, "Points"] += 10  # Base points per day
+def update_points_and_level(idx, bonus=0):
+    habits.at[idx, "Points"] += 10 + bonus  # base + bonus
     while habits.at[idx, "Points"] >= habits.at[idx, "Level"] * 100:
         habits.at[idx, "Level"] += 1
         st.balloons()
@@ -49,37 +52,50 @@ def unlock_achievements(idx):
     if streak >= 30: badges.append("1 Month Streak 🏅")
     if points >= 500: badges.append("500 Points Badge ⭐")
     if points >= 1000: badges.append("1k Points Badge 💎")
+    if habits.at[idx, "Premium"]:
+        badges.append("Premium Member 💎")
     return badges
+
+def mark_habit(idx):
+    today = date.today().strftime("%Y-%m-%d")
+    if habits.at[idx, "Last Marked"] != today:
+        habits.at[idx, "Streak"] += 1
+        habits.at[idx, "Last Marked"] = today
+        bonus = 5 if habits.at[idx, "Premium"] else 0
+        update_points_and_level(idx, bonus)
+        habits.to_csv("habits.csv", index=False)
+        st.success(f"{habits.at[idx, 'Habit']} streak: {habits.at[idx, 'Streak']} days, Points: {habits.at[idx, 'Points']}, Level: {habits.at[idx, 'Level']}")
+    else:
+        st.info(f"{habits.at[idx, 'Habit']} already marked today ✅")
 
 # ------------------------------
 # Sidebar: Add Habit
 # ------------------------------
 st.sidebar.header("Add a New Habit")
 habit_name = st.sidebar.text_input("Habit Name")
+premium_checkbox = st.sidebar.checkbox("Premium Habit")
 if st.sidebar.button("Add Habit"):
     if habit_name.strip() != "":
-        habits = add_habit(habit_name.strip())
+        habits = add_habit(habit_name.strip(), premium_checkbox)
         habits.to_csv("habits.csv", index=False)
-        st.sidebar.success(f"Habit '{habit_name}' added!")
+        st.sidebar.success(f"Habit '{habit_name}' added! {'Premium activated!' if premium_checkbox else ''}")
+
+# ------------------------------
+# Premium Upgrade
+# ------------------------------
+st.sidebar.header("Upgrade to Premium 🚀")
+st.sidebar.write("Unlock extra points, badges, and exclusive mini-challenges!")
+if st.sidebar.button("Upgrade via Stripe"):
+    st.sidebar.markdown("[Click here to pay via Stripe](YOUR_STRIPE_CHECKOUT_LINK)")
 
 # ------------------------------
 # Active Habits Section
 # ------------------------------
 st.subheader("Your Active Habits 🎯")
-today = date.today().strftime("%Y-%m-%d")
-
 for idx, row in habits.iterrows():
     if row["Status"] == "Active":
-        last_marked = row["Last Marked"]
-        if last_marked != today:
-            if st.button(f"Mark {row['Habit']} as no slip today ✅", key=idx):
-                habits.at[idx, "Streak"] += 1
-                habits.at[idx, "Last Marked"] = today
-                update_points_and_level(idx)
-                habits.to_csv("habits.csv", index=False)
-                st.success(f"{row['Habit']} streak: {habits.at[idx, 'Streak']} days, Points: {habits.at[idx, 'Points']}, Level: {habits.at[idx, 'Level']}")
-        else:
-            st.info(f"{row['Habit']} already marked today ✅")
+        if st.button(f"Mark {row['Habit']} as no slip today ✅", key=idx):
+            mark_habit(idx)
 
 # ------------------------------
 # Achievements
@@ -107,15 +123,22 @@ if not habits.empty:
 # Mini-Challenge
 # ------------------------------
 st.subheader("Daily Mini-Challenge 🎲")
-challenge_text = "No sugar today for double points!"
-st.write(challenge_text)
+challenges = [
+    "No sugar today for double points!",
+    "No social media before 10am for +10 points!",
+    "Drink 2L water for +5 points!",
+    "Exercise for 20 min for +15 points!"
+]
+challenge_today = random.choice(challenges)
+st.write(challenge_today)
 if st.button("Complete Mini-Challenge"):
     for idx, row in habits.iterrows():
         if row["Status"] == "Active":
-            habits.at[idx, "Points"] += 20  # bonus points
+            bonus = 10 if row["Premium"] else 5
+            habits.at[idx, "Points"] += bonus
             update_points_and_level(idx)
     habits.to_csv("habits.csv", index=False)
-    st.success(f"Mini-Challenge completed! +20 points for all active habits!")
+    st.success(f"Mini-Challenge completed! Points awarded to active habits!")
 
 # ------------------------------
 # Completed / Dropped Habits
@@ -128,7 +151,7 @@ else:
     st.write("No completed or dropped habits yet.")
 
 # ------------------------------
-# Optional: Daily Reminder
+# Sidebar Tip
 # ------------------------------
 st.sidebar.subheader("Tip 💡")
 st.sidebar.info("Check your habits daily to keep your streaks alive! 🚀")

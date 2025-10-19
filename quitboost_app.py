@@ -1,10 +1,13 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
-st.set_page_config(page_title="QuitBoost Game 🚀", layout="wide")
-st.title("QuitBoost: Gamified Habit Game 🎮")
-st.subheader("Turn quitting habits into a fun game!")
+# ------------------------------
+# Streamlit config
+# ------------------------------
+st.set_page_config(page_title="QuitBoost Ultimate 🚀", layout="wide")
+st.title("QuitBoost Ultimate: Gamified Habit Game 🎮")
+st.subheader("Turn quitting habits into an addictive game!")
 
 # ------------------------------
 # Load or initialize data
@@ -22,7 +25,7 @@ except:
 def add_habit(name):
     new_habit = pd.DataFrame({
         "Habit": [name],
-        "Start Date": [date.today()],
+        "Start Date": [date.today().strftime("%Y-%m-%d")],
         "Streak": [0],
         "Points": [0],
         "Level": [1],
@@ -32,8 +35,8 @@ def add_habit(name):
     return pd.concat([habits, new_habit], ignore_index=True)
 
 def update_points_and_level(idx):
-    habits.at[idx, "Points"] += 10  # 10 points per day
-    if habits.at[idx, "Points"] >= habits.at[idx, "Level"] * 100:
+    habits.at[idx, "Points"] += 10  # Base points per day
+    while habits.at[idx, "Points"] >= habits.at[idx, "Level"] * 100:
         habits.at[idx, "Level"] += 1
         st.balloons()
         st.success(f"{habits.at[idx, 'Habit']} leveled up to Level {habits.at[idx, 'Level']}!")
@@ -45,6 +48,7 @@ def unlock_achievements(idx):
     if streak >= 7: badges.append("1 Week Streak 🏆")
     if streak >= 30: badges.append("1 Month Streak 🏅")
     if points >= 500: badges.append("500 Points Badge ⭐")
+    if points >= 1000: badges.append("1k Points Badge 💎")
     return badges
 
 # ------------------------------
@@ -103,11 +107,13 @@ if not habits.empty:
 # Mini-Challenge
 # ------------------------------
 st.subheader("Daily Mini-Challenge 🎲")
-challenge = "No sugar today for double points!"
+challenge_text = "No sugar today for double points!"
+st.write(challenge_text)
 if st.button("Complete Mini-Challenge"):
     for idx, row in habits.iterrows():
         if row["Status"] == "Active":
-            habits.at[idx, "Points"] += 20  # double points
+            habits.at[idx, "Points"] += 20  # bonus points
+            update_points_and_level(idx)
     habits.to_csv("habits.csv", index=False)
     st.success(f"Mini-Challenge completed! +20 points for all active habits!")
 
@@ -120,3 +126,9 @@ if not completed.empty:
     st.table(completed)
 else:
     st.write("No completed or dropped habits yet.")
+
+# ------------------------------
+# Optional: Daily Reminder
+# ------------------------------
+st.sidebar.subheader("Tip 💡")
+st.sidebar.info("Check your habits daily to keep your streaks alive! 🚀")
